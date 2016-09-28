@@ -54,14 +54,17 @@ int     zbx_module_lxd_discovery(AGENT_REQUEST *request, AGENT_RESULT *result);
 int     zbx_module_lxd_up(AGENT_REQUEST *request, AGENT_RESULT *result);
 int     zbx_module_lxd_mem(AGENT_REQUEST *request, AGENT_RESULT *result);
 int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result);
+int     zbx_module_lxd_dev(AGENT_REQUEST *request, AGENT_RESULT *result);
+
 
 static ZBX_METRIC keys[] =
 /*      KEY                     FLAG            FUNCTION                TEST PARAMETERS */
 {
         {"lxd.discovery", CF_HAVEPARAMS, zbx_module_lxd_discovery,    "<parameter 1>, <parameter 2>, <parameter 3>"},
-        {"lxd.up",   CF_HAVEPARAMS,  zbx_module_lxd_up,   "full container id"},
-        {"lxd.mem",  CF_HAVEPARAMS,  zbx_module_lxd_mem,  "full container id, memory metric name"},
-        {"lxd.cpu",  CF_HAVEPARAMS,  zbx_module_lxd_cpu,  "full container id, cpu metric name"},
+        {"lxd.up",   CF_HAVEPARAMS,  zbx_module_lxd_up,   "container name"},
+        {"lxd.mem",  CF_HAVEPARAMS,  zbx_module_lxd_mem,  "container name, memory metric name"},
+        {"lxd.cpu",  CF_HAVEPARAMS,  zbx_module_lxd_cpu,  "container name, cpu metric name"},
+        {"lxd.dev",  CF_HAVEPARAMS,  zbx_module_lxd_dev,  "container name, blkio file, blkio metric name"},
         {NULL}
 };
 
@@ -228,8 +231,8 @@ int     zbx_module_lxd_up(AGENT_REQUEST *request, AGENT_RESULT *result)
 
         if (stat_dir == NULL || driver == NULL)
         {
-                zabbix_log(LOG_LEVEL_DEBUG, "docker.up/systemd.up check is not available at the moment - no stat directory");
-                SET_MSG_RESULT(result, zbx_strdup(NULL, "docker.up/systemd.up check is not available at the moment - no stat directory"));
+                zabbix_log(LOG_LEVEL_DEBUG, "up check is not available at the moment - no stat directory");
+                SET_MSG_RESULT(result, zbx_strdup(NULL, "up check is not available at the moment - no stat directory"));
                 return SYSINFO_RET_FAIL;
         }
 
@@ -237,8 +240,8 @@ int     zbx_module_lxd_up(AGENT_REQUEST *request, AGENT_RESULT *result)
         {
                 if (zbx_lxd_dir_detect() == SYSINFO_RET_FAIL)
                 {
-                    zabbix_log(LOG_LEVEL_DEBUG, "docker.up/systemd.up check is not available at the moment - no cpu_cgroup directory");
-                    SET_MSG_RESULT(result, zbx_strdup(NULL, "docker.up/systemd.up check is not available at the moment - no cpu_cgroup directory"));
+                    zabbix_log(LOG_LEVEL_DEBUG, "up check is not available at the moment - no cpu_cgroup directory");
+                    SET_MSG_RESULT(result, zbx_strdup(NULL, "up check is not available at the moment - no cpu_cgroup directory"));
                     return SYSINFO_RET_FAIL;
                 }
         }
@@ -247,32 +250,15 @@ int     zbx_module_lxd_up(AGENT_REQUEST *request, AGENT_RESULT *result)
         char    *stat_file = "/cpuacct.stat";
         char    *cgroup = cpu_cgroup;
         size_t  filename_size = strlen(cgroup) + strlen(container) + strlen(stat_dir) + strlen(driver) + strlen(stat_file) + 2;
-        if (strstr(container, ".") == NULL) {
-            if (c_prefix != NULL)
-            {
-                filename_size += strlen(c_prefix);
-            }
-            if (c_suffix != NULL)
-            {
-                filename_size += strlen(c_suffix);
-            }
-        }
         char    *filename = malloc(filename_size);
         zbx_strlcpy(filename, stat_dir, filename_size);
         zbx_strlcat(filename, cgroup, filename_size);
         zbx_strlcat(filename, driver, filename_size);
-        if (strstr(container, ".") == NULL && c_prefix != NULL)
-        {
-            zbx_strlcat(filename, c_prefix, filename_size);
-        }
         zbx_strlcat(filename, container, filename_size);
-        if (strstr(container, ".") == NULL && c_suffix != NULL)
-        {
-            zbx_strlcat(filename, c_suffix, filename_size);
-        }
         free(container);
         zbx_strlcat(filename, stat_file, filename_size);
         zabbix_log(LOG_LEVEL_DEBUG, "Metric source file: %s", filename);
+
         FILE    *file;
         if (NULL == (file = fopen(filename, "r")))
         {
@@ -298,7 +284,7 @@ int     zbx_module_lxd_up(AGENT_REQUEST *request, AGENT_RESULT *result)
  *                                 as not supported by zabbix                 *
  *               SYSINFO_RET_OK - success                                     *
  *                                                                            *
- * Notes: https://www.kernel.org/doc/Documentation/cgroups/memory.txt         *
+ * Notes: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt       *
  ******************************************************************************/
 int     zbx_module_lxd_mem(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
@@ -315,8 +301,8 @@ int     zbx_module_lxd_mem(AGENT_REQUEST *request, AGENT_RESULT *result)
 
         if (stat_dir == NULL || driver == NULL)
         {
-                zabbix_log(LOG_LEVEL_DEBUG, "docker.mem/systemd.mem metrics are not available at the moment - no stat directory");
-                SET_MSG_RESULT(result, zbx_strdup(NULL, "docker.mem/systemd.mem metrics are not available at the moment - no stat directory"));
+                zabbix_log(LOG_LEVEL_DEBUG, "mem metrics are not available at the moment - no stat directory");
+                SET_MSG_RESULT(result, zbx_strdup(NULL, "mem metrics are not available at the moment - no stat directory"));
                 return SYSINFO_RET_FAIL;
         }
 
@@ -325,33 +311,14 @@ int     zbx_module_lxd_mem(AGENT_REQUEST *request, AGENT_RESULT *result)
         char    *stat_file = "/memory.stat";
         char    *cgroup = "memory/";
         size_t  filename_size = strlen(cgroup) + strlen(container) + strlen(stat_dir) + strlen(driver) + strlen(stat_file) + 2;
-
-        if (strstr(container, ".") == NULL) {
-            if (c_prefix != NULL)
-            {
-                filename_size += strlen(c_prefix);
-            }
-            if (c_suffix != NULL)
-            {
-                filename_size += strlen(c_suffix);
-            }
-        }
-
         char    *filename = malloc(filename_size);
         zbx_strlcpy(filename, stat_dir, filename_size);
         zbx_strlcat(filename, cgroup, filename_size);
         zbx_strlcat(filename, driver, filename_size);
-        if (strstr(container, ".") == NULL && c_prefix != NULL)
-        {
-            zbx_strlcat(filename, c_prefix, filename_size);
-        }
         zbx_strlcat(filename, container, filename_size);
-        if (strstr(container, ".") == NULL && c_suffix != NULL)
-        {
-            zbx_strlcat(filename, c_suffix, filename_size);
-        }
         zbx_strlcat(filename, stat_file, filename_size);
         zabbix_log(LOG_LEVEL_DEBUG, "Metric source file: %s", filename);
+        
         FILE    *file;
         if (NULL == (file = fopen(filename, "r")))
         {
@@ -404,7 +371,7 @@ int     zbx_module_lxd_mem(AGENT_REQUEST *request, AGENT_RESULT *result)
  *                                 as not supported by zabbix                 *
  *               SYSINFO_RET_OK - success                                     *
  *                                                                            *
- * Notes: https://www.kernel.org/doc/Documentation/cgroups/cpuacct.txt        *
+ * Notes: https://www.kernel.org/doc/Documentation/cgroup-v1/cpuacct.txt      *
  ******************************************************************************/
 int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
@@ -422,8 +389,8 @@ int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result)
 
         if (stat_dir == NULL || driver == NULL)
         {
-                zabbix_log(LOG_LEVEL_DEBUG, "docker.cpu/systemd.cpu metrics are not available at the moment - no stat directory");
-                SET_MSG_RESULT(result, zbx_strdup(NULL, "docker.cpu/systemd.cpu metrics are not available at the moment - no stat directory"));
+                zabbix_log(LOG_LEVEL_DEBUG, "cpu metrics are not available at the moment - no stat directory");
+                SET_MSG_RESULT(result, zbx_strdup(NULL, "cpu metrics are not available at the moment - no stat directory"));
                 return SYSINFO_RET_FAIL;
         }
 
@@ -431,8 +398,8 @@ int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result)
         {
                 if (zbx_lxd_dir_detect() == SYSINFO_RET_FAIL)
                 {
-                    zabbix_log(LOG_LEVEL_DEBUG, "docker.cpu/systemd.cpu check is not available at the moment - no cpu_cgroup directory");
-                    SET_MSG_RESULT(result, zbx_strdup(NULL, "docker.cpu/systemd.cpu check is not available at the moment - no cpu_cgroup directory"));
+                    zabbix_log(LOG_LEVEL_DEBUG, "cpu check is not available at the moment - no cpu_cgroup directory");
+                    SET_MSG_RESULT(result, zbx_strdup(NULL, "cpu check is not available at the moment - no cpu_cgroup directory"));
                     return SYSINFO_RET_FAIL;
                 }
         }
@@ -451,32 +418,18 @@ int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result)
                 cgroup = "cpu/";
             }
         }
+
+        zabbix_log(LOG_LEVEL_DEBUG, "cpu_cgroup: %s, cgroup: %s, stat_file: %s, metric: %s, container: %s", cpu_cgroup, cgroup, stat_file, metric, container);
         size_t  filename_size = strlen(cgroup) + strlen(container) + strlen(stat_dir) + strlen(driver) + strlen(stat_file) + 2;
-        if (strstr(container, ".") == NULL) {
-            if (c_prefix != NULL)
-            {
-                filename_size += strlen(c_prefix);
-            }
-            if (c_suffix != NULL)
-            {
-                filename_size += strlen(c_suffix);
-            }
-        }
         char    *filename = malloc(filename_size);
+       
         zbx_strlcpy(filename, stat_dir, filename_size);
         zbx_strlcat(filename, cgroup, filename_size);
         zbx_strlcat(filename, driver, filename_size);
-        if (strstr(container, ".") == NULL && c_prefix != NULL)
-        {
-            zbx_strlcat(filename, c_prefix, filename_size);
-        }
         zbx_strlcat(filename, container, filename_size);
-        if (strstr(container, ".") == NULL && c_suffix != NULL)
-        {
-            zbx_strlcat(filename, c_suffix, filename_size);
-        }
         zbx_strlcat(filename, stat_file, filename_size);
         zabbix_log(LOG_LEVEL_DEBUG, "Metric source file: %s", filename);
+        
         FILE    *file;
         if (NULL == (file = fopen(filename, "r")))
         {
@@ -496,6 +449,7 @@ int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result)
         zabbix_log(LOG_LEVEL_DEBUG, "Looking metric %s in cpuacct.stat file", metric);
         while (NULL != fgets(line, sizeof(line), file))
         {
+                
                 if (0 != strncmp(line, metric2, strlen(metric2)))
                         continue;
                 if (1 != sscanf(line, "%*s " ZBX_FS_UI64, &value))
@@ -524,6 +478,106 @@ int     zbx_module_lxd_cpu(AGENT_REQUEST *request, AGENT_RESULT *result)
 
         return ret;
 }
+
+/******************************************************************************
+ *                                                                            *
+ * Function: zbx_module_lxd_dev                                               *
+ *                                                                            *
+ * Purpose: container device blkio metrics                                    *
+ *                                                                            *
+ * Return value: SYSINFO_RET_FAIL - function failed, item will be marked      *
+ *                                 as not supported by zabbix                 *
+ *               SYSINFO_RET_OK - success                                     *
+ *                                                                            *
+ * Notes: https://www.kernel.org/doc/Documentation/cgroup-v1/blkio-controller.txt
+ ******************************************************************************/
+int     zbx_module_lxd_dev(AGENT_REQUEST *request, AGENT_RESULT *result)
+{
+        zabbix_log(LOG_LEVEL_DEBUG, "In zbx_module_lxd_dev()");
+        char    *container, *metric;
+        int     ret = SYSINFO_RET_FAIL;
+
+        if (3 != request->nparam)
+        {
+                zabbix_log(LOG_LEVEL_ERR, "Invalid number of parameters: %d",  request->nparam);
+                SET_MSG_RESULT(result, strdup("Invalid number of parameters"));
+                return SYSINFO_RET_FAIL;
+        }
+
+        if (stat_dir == NULL || driver == NULL)
+        {
+                zabbix_log(LOG_LEVEL_DEBUG, "dev metrics are not available at the moment - no stat directory");
+                SET_MSG_RESULT(result, zbx_strdup(NULL, "dev metrics are not available at the moment - no stat directory"));
+                return SYSINFO_RET_FAIL;
+        }
+
+        container = zbx_strdup(NULL, get_rparam(request, 0));
+        char    *stat_file = malloc(strlen(get_rparam(request, 1)) + 2);
+        zbx_strlcpy(stat_file, "/", strlen(get_rparam(request, 1)) + 2);
+        zbx_strlcat(stat_file, get_rparam(request, 1), strlen(get_rparam(request, 1)) + 2);
+        metric = get_rparam(request, 2);
+
+        char    *cgroup = "blkio/";
+        size_t  filename_size = strlen(cgroup) + strlen(container) + strlen(stat_dir) + strlen(driver) + strlen(stat_file) + 2;
+        char    *filename = malloc(filename_size);
+        zbx_strlcpy(filename, stat_dir, filename_size);
+        zbx_strlcat(filename, cgroup, filename_size);
+        zbx_strlcat(filename, driver, filename_size);
+        zbx_strlcat(filename, container, filename_size);
+        zbx_strlcat(filename, stat_file, filename_size);
+        zabbix_log(LOG_LEVEL_DEBUG, "Metric source file: %s", filename);
+
+        FILE    *file;
+        if (NULL == (file = fopen(filename, "r")))
+        {
+                zabbix_log(LOG_LEVEL_ERR, "Cannot open metric file: '%s'", filename);
+                free(container);
+                free(stat_file);
+                free(filename);
+                SET_MSG_RESULT(result, strdup("Cannot open stat file, maybe CONFIG_DEBUG_BLK_CGROUP is not enabled"));
+                zabbix_log(LOG_LEVEL_ERR, "Cannot open stat file, maybe CONFIG_DEBUG_BLK_CGROUP is not enabled");
+                return SYSINFO_RET_FAIL;
+        }
+
+        char    line[MAX_STRING_LEN];
+        char    *metric2 = malloc(strlen(metric)+3);
+        memcpy(metric2, metric, strlen(metric));
+        memcpy(metric2 + strlen(metric), " ", 2);
+        zbx_uint64_t    value = 0;
+        zabbix_log(LOG_LEVEL_DEBUG, "Looking metric %s in blkio file", metric);
+        while (NULL != fgets(line, sizeof(line), file))
+        {
+                if (0 != strncmp(line, metric2, strlen(metric2)))
+                        continue;
+                if (1 != sscanf(line, "%*s " ZBX_FS_UI64, &value))
+                {
+                     // maybe per blk device metric, e.g. '8:0 Read'
+                     if (1 != sscanf(line, "%*s %*s " ZBX_FS_UI64, &value))
+                     {
+                         zabbix_log(LOG_LEVEL_ERR, "sscanf failed for matched metric line");
+                         break;
+                     }
+                }
+                zabbix_log(LOG_LEVEL_DEBUG, "Id: %s; stat file: %s, metric: %s; value: %d", container, stat_file, metric, value);
+                SET_UI64_RESULT(result, value);
+                ret = SYSINFO_RET_OK;
+                break;
+        }
+        zbx_fclose(file);
+
+        free(container);
+        free(stat_file);
+        free(filename);
+        free(metric2);
+
+        if (SYSINFO_RET_FAIL == ret){
+                SET_MSG_RESULT(result, zbx_strdup(NULL, "Cannot find a line with requested metric in blkio file"));
+                zabbix_log(LOG_LEVEL_ERR, "Cannot find a line with requested metric in blkio file");
+        }
+
+        return ret;
+}
+
 
 /******************************************************************************
  *                                                                            *
