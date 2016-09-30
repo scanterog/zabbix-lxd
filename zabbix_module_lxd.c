@@ -48,7 +48,7 @@ struct inspect_result
 };
 
 char    *m_version = "v0.1";
-char    *stat_dir = NULL, *driver, *c_prefix = NULL, *c_suffix = NULL, *cpu_cgroup = NULL, *hostname = 0;
+char    *stat_dir = NULL, *driver, *cpu_cgroup = NULL, *hostname = 0;
 static int item_timeout = 1, buffer_size = 1024, cid_length = 66, socket_api;
 int     zbx_module_lxd_discovery(AGENT_REQUEST *request, AGENT_RESULT *result);
 int     zbx_module_lxd_up(AGENT_REQUEST *request, AGENT_RESULT *result);
@@ -654,7 +654,7 @@ int     zbx_module_init()
 
 /******************************************************************************
  *                                                                            *
- * Function: zbx_module_lxd_discovery_basic                                   *
+ * Function: zbx_module_lxd_discovery                                         *
  *                                                                            *
  * Purpose: container discovery                                               *
  *                                                                            *
@@ -663,9 +663,9 @@ int     zbx_module_init()
  *               SYSINFO_RET_OK - success                                     *
  *                                                                            *
  ******************************************************************************/
-int     zbx_module_lxd_discovery_basic(AGENT_REQUEST *request, AGENT_RESULT *result)
+int     zbx_module_lxd_discovery(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-        zabbix_log(LOG_LEVEL_DEBUG, "In zbx_module_lxd_discovery_basic()");
+        zabbix_log(LOG_LEVEL_DEBUG, "In zbx_module_lxd_discovery()");
 
         struct zbx_json j;
         if(stat_dir == NULL && zbx_lxd_dir_detect() == SYSINFO_RET_FAIL)
@@ -681,7 +681,7 @@ int     zbx_module_lxd_discovery_basic(AGENT_REQUEST *request, AGENT_RESULT *res
 
         DIR             *dir;
         zbx_stat_t      sb;
-        char            *file = NULL, *containerid, scontainerid[13];
+        char            *file = NULL, *containerid;
         struct dirent   *d;
         char    *cgroup = "cpuset/";
         size_t  ddir_size = strlen(cgroup) + strlen(stat_dir) + strlen(driver) + 2;
@@ -689,6 +689,7 @@ int     zbx_module_lxd_discovery_basic(AGENT_REQUEST *request, AGENT_RESULT *res
         zbx_strlcpy(ddir, stat_dir, ddir_size);
         zbx_strlcat(ddir, cgroup, ddir_size);
         zbx_strlcat(ddir, driver, ddir_size);
+        zabbix_log(LOG_LEVEL_DEBUG, "lxd.discovery-> ddir: %s", ddir);
 
         if (NULL == (dir = opendir(ddir)))
         {
@@ -727,28 +728,10 @@ int     zbx_module_lxd_discovery_basic(AGENT_REQUEST *request, AGENT_RESULT *res
                 if (0 != zbx_stat(file, &sb) || 0 == S_ISDIR(sb.st_mode))
                         continue;
 
-                // systemd docker: remove suffix (.scope)
-                if (c_suffix != NULL)
-                {
-                    containerid = strtok(d->d_name, ".");
-                } else {
-                    containerid = d->d_name;
-                }
-
-                // systemd docker: remove preffix (docker-)
-                if (c_prefix != NULL)
-                {
-                    containerid = strtok(containerid, "-");
-                    containerid = strtok(NULL, "-");
-                } else {
-                    containerid = d->d_name;
-                }
+                containerid = d->d_name;
 
                 zbx_json_addobject(&j, NULL);
-                zbx_json_addstring(&j, "{#FCONTAINERID}", containerid, ZBX_JSON_TYPE_STRING);
-                zbx_strlcpy(scontainerid, containerid, 13);
-                zbx_json_addstring(&j, "{#HCONTAINERID}", scontainerid, ZBX_JSON_TYPE_STRING);
-                zbx_json_addstring(&j, "{#SCONTAINERID}", scontainerid, ZBX_JSON_TYPE_STRING);
+                zbx_json_addstring(&j, "{#HCONTAINERID}", containerid, ZBX_JSON_TYPE_STRING);
                 zbx_json_addstring(&j, "{#SYSTEM.HOSTNAME}", hostname, ZBX_JSON_TYPE_STRING);
                 zbx_json_close(&j);
 
@@ -768,21 +751,5 @@ int     zbx_module_lxd_discovery_basic(AGENT_REQUEST *request, AGENT_RESULT *res
         free(ddir);
 
         return SYSINFO_RET_OK;
-}
-
-/******************************************************************************
- *                                                                            *
- * Function: zbx_module_lxd_discovery                                         *
- *                                                                            *
- * Purpose: container discovery                                               *
- *                                                                            *
- * Return value: SYSINFO_RET_FAIL - function failed, item will be marked      *
- *                                 as not supported by zabbix                 *
- *               SYSINFO_RET_OK - success                                     *
- *                                                                            *
- ******************************************************************************/
-int     zbx_module_lxd_discovery(AGENT_REQUEST *request, AGENT_RESULT *result)
-{
-        return zbx_module_lxd_discovery_basic(request, result);
 }
 
