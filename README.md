@@ -11,7 +11,7 @@ svn co svn://svn.zabbix.com/branches/3.2 .
 ./bootstrap.sh
 ./configure --enable-agent
 mkdir src/modules/zabbix_module_lxd
-cd src/modules/zabbix_module_docker
+cd src/modules/zabbix_module_lxd
 wget https://raw.githubusercontent.com/scanterog/zabbix-lxd/master/zabbix_module_lxd.c
 https://raw.githubusercontent.com/scanterog/zabbix-lxd/master/Makefile
 make
