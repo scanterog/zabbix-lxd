@@ -2,18 +2,36 @@
 
 A loadable module for Zabbix Agent in order to monitor LXD containers.
 
-## Compiling the module
+## Get the source
+
+When you have Zabbix installed from the official repository:
+```
+# debian / ubuntu / proxmox
+apt install dpkg-dev
+apt-get source zabbix-agent
+cd zabbix-3.2.x
+
+# redhat / centos
+# TODO
+```
+
+or directly from svn:
 
 ```
 mkdir zabbix3.2
 cd zabbix3.2
 svn co svn://svn.zabbix.com/branches/3.2 .
 ./bootstrap.sh
+```
+
+## Compiling the module
+
+```
 ./configure --enable-agent
 mkdir src/modules/zabbix_module_lxd
 cd src/modules/zabbix_module_lxd
-wget https://raw.githubusercontent.com/scanterog/zabbix-lxd/master/zabbix_module_lxd.c
-https://raw.githubusercontent.com/scanterog/zabbix-lxd/master/Makefile
+wget https://raw.githubusercontent.com/scanterog/zabbix-lxd/master/zabbix_module_lxd.c \
+  https://raw.githubusercontent.com/scanterog/zabbix-lxd/master/Makefile
 make
 ```
 The output should be a dynamically linked shared object library named `zabbix_module_lxd.so`.
@@ -32,4 +50,4 @@ To enable the module, add in `/etc/zabbix/zabbix_agentd.conf`:
 LoadModule=zabbix_module_lxd.so
 ```
 
-Finally, restart the zabbix-agent.
+Finally, restart the zabbix-agent and upload `Zabbix-template-LXD.xml` to your Zabbix server.
