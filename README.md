@@ -51,3 +51,19 @@ LoadModule=zabbix_module_lxd.so
 ```
 
 Finally, restart the zabbix-agent and upload `Zabbix-template-LXD.xml` to your Zabbix server.
+
+## Disk monitoring
+
+If you run `zabbix_agentd` as a normal zabbix user (the default) you also need to:
+- Copy `userparameters_lxd.conf` to `/etc/zabbix/zabbix_agentd.d/`
+- Use `visudo` to add `zabbix  ALL=(ALL:ALL) NOPASSWD: /usr/sbin/zabbix_agentd` to /etc/sudoers
+
+If you run `zabbix_agentd` as root:
+- Replace all occurences of `lxd.disk` with `lxd.rdisk` in the new disk template
+
+Next:
+- remove the old LXD template from zabbix (_without_ clearing)
+- import the new `Zabbix-template-LXD-disk.xml` template)
+- add the LXD template to your hosts (again)
+
+> If you run an older version of lxc the process id's are probably not stored in `cgroup.procs`, the fallback method in that case is running `lxc-info -n CONTAINERID -p -P /var/lib/lxc`. This is done automatically, but if your lxcpath is different you should probably symlink it. lxc-info uses /tmp for its cache folder with locking information.
